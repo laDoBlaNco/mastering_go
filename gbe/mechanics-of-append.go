@@ -295,14 +295,14 @@ func main() {
 			}
 
 		The capacity field is equal to the length of the underlying array, minus the index
-		in the array of the first element of the slice (in this case its full capacity since we 
+		in the array of the first element of the slice (in this case its full capacity since we
 		are at zero) If our slice started at 2 then capacity would only be 7. If I want to inquire
 		what the capacity is for a slice, I have the built-in function 'cap':
 	*/
 	var iBuffer [10]int
 	slice2 := iBuffer[0:0]
 	for i := 0; i < 20; i++ {
-		if cap(slice2) == len(slice2){
+		if cap(slice2) == len(slice2) {
 			fmt.Println("slice is full")
 			break
 		}
@@ -310,11 +310,97 @@ func main() {
 		fmt.Println(slice2)
 	}
 
+	/*
+		Make:
+
+		So what if we wanted to grow the slice beyond its capacity? Technically, we can't. By
+		definition the capacity is the LIMIT to the growth mainly due to the underlying memory
+		blocks. But we can achieve an equivalent result by ALLOCATING NEW MEMORY by allocating
+		a new backing array, copying the data over and modifying the slice to describe the new
+		array. Again since the slice is simply information about the backing array's window we
+		are looking through at the moment.
+
+		We start with the allocation. We could use the 'new' built-in function to allocate
+		a bigger array and then slice the result, but it is simpler to use the 'make' built-in
+		function instead. It allocates a new array (contiguous memory block) AND creates a slice
+		(window) header to describe it, all at once. The 'make' function takes three arguments:
+			- the type of the slice
+			- its initial length
+			- and its capacity (which is the length of the array that 'make' allocates to  hold
+				the slice data)
+
+		This call creates a slice of length 10 with room for 5 more:
+	*/
+	slice3 := make([]int, 10, 15)
+	fmt.Printf("len: %d, cap: %d\n", len(slice3), cap(slice3))
+	newSlice3 := make([]int, len(slice3), 2*cap(slice3))
+	copy(newSlice3, slice3) // again rather than the for..range loop
+	slice3 = newSlice3
+	fmt.Printf("len: %d, cap: %d\n", len(slice3), cap(slice3))
+
+	/*
+		After running this code the slice has much more room to gorw before needing another
+		reallocation.
+
+		when creating slices, it's often true that the length and capacity will be the same. The
+		'make' built-in has a shorthand for this common case.The length argument defaults to the
+		capacity, so we can leave it out to set both of them to the same value. 🤔🤯 So its the
+		length that's optional rather than the capacity as everyone teaches.
+
+		Copy:
+		When we doubled the capacity above of our slice in the previous example, we've seen it
+		written with a loop that copyies the old data to the new slice. Go has a built-in function
+		,which I've been using, 'copy', to make this easier. Its arguments are two slices, and it
+		copies the data from the right-hand argument (second) to the left-hand argument (first). So
+		the idomatic version we've been using above instead of the loop has been:
+			newSlice := make([]int,len(slice),2*cap(slice))
+			copy(newSlice,slice)
+
+		The copy function is very smart. It only copies what it can, paying attention to the
+		lengths of both arguments. In other words, the number of elements it copies is the
+		minimum of the lengths of the two slices. This can save a little bookkeeping. Also,
+		'copy' returns an integer value, the number of elements it copied, although it's not
+		always worth checking.
+
+		The 'copy' function also gets things right when source and destination overlap, which
+		means it can be used to shift items around in a single slice 🤯🤯🤯 (I didn't know that)
+		Here's how to use copy to do that with the function Insert.
+		There are a couple of things to notice in that function. First, of course, it must return
+		the updated slice since its length has changed (meaning we are mutating the header (window))
+		Second, it uses a convenient shorthand: slice[i:] which means the same as slice[i:len(slice)]
+		Also, although we haven't used the trick yet, we can also leave out the first element of
+		a slice expression too: slice[:] which just means the slice itself, which is useful when
+		slicing an array. Its actually the shortest expression to say "a slice describing all the
+		elements in the array". As in, give me array[:]. Now let's run it
+	*/
+	slice4 := make([]int, 10, 20) // Note capacity > length: room to add elements without allocation
+	for i := range slice4 {
+		slice4[i] = i
+	}
+	fmt.Println(slice4)
+	slice4 = Insert(slice4, 5, 99)
+	fmt.Println(slice4)
+
 	/* 
-	Make: 
+	Append: An example
 
 	
 	*/
+}
+
+// Insert inserts the value into the slice at the specified index
+// which must be in range.
+// The slice must have room for the new element
+func Insert(slice []int, index, value int) []int {
+	// first we grow the slice by one element
+	slice = slice[0 : len(slice)+1]
+	// then use the copy function to move the upper part of the slice ot of the way
+	// and open a hole
+	copy(slice[index+1:], slice[index:])
+	// then store the new value
+	slice[index] = value
+	// and return the result
+	return slice
 }
 
 func Extend(slice []int, element int) []int {
